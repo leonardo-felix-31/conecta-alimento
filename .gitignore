@@ -1,0 +1,109 @@
+# =============================================================
+# Conecta Alimento - .gitignore
+# Repositório público: nada de banco de dados, credenciais ou
+# dados pessoais deve ser versionado.
+# =============================================================
+
+# --- Python: bytecode e cache ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# --- Ambientes virtuais ---
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# --- Empacotamento e build ---
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+pip-wheel-metadata/
+# PyInstaller (o arquivo .spec pode ser versionado de propósito)
+*.manifest
+
+# --- Testes, cobertura e ferramentas de qualidade ---
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+
+# --- Banco de dados local (SQLite) ---
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite-journal
+dados/*
+!dados/.gitkeep
+
+# --- Backups e exportações geradas pelo sistema (podem conter dados reais) ---
+backups/
+backup/
+exportacoes/
+relatorios_gerados/
+*.bak
+*.dump
+
+# --- Streamlit ---
+# secrets.toml pode conter credenciais; nunca versionar
+.streamlit/secrets.toml
+.streamlit/*.local.toml
+
+# --- Credenciais e configuração sensível ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+id_rsa*
+id_ed25519*
+secrets.*
+credentials.*
+*.secret
+*.secrets
+config.local.*
+settings.local.*
+
+# --- Jupyter (caso sejam usados notebooks de apoio) ---
+.ipynb_checkpoints/
+
+# --- Logs e temporários ---
+*.log
+logs/
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.cache/
+
+# --- Editores e IDEs ---
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# --- Sistema operacional ---
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
