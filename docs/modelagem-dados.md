@@ -28,7 +28,7 @@ O documento cobre o modelo, as regras e a justificativa das decisões. Ele não 
 | D3 | `MovimentacaoEstoque` é **append-only**. A quantidade é sempre positiva e o `tipo` define o sentido (**6 tipos**: os cinco originais mais `ESTORNO_DISTRIBUICAO`, que reverte **integralmente** uma `SAIDA_DISTRIBUICAO` específica). | 5.2, 9 |
 | D4 | O saldo **nunca é armazenado**. Ele é calculado a partir das movimentações. | 9 |
 | D5 | A consistência entre lote, alimento, item e solicitação é garantida por **chaves estrangeiras compostas**, com `id_alimento` e `id_solicitacao` repetidos na movimentação. | 4.1, 6.1 |
-| D6 | Validação amigável no serviço, dentro de transação `BEGIN IMMEDIATE`, mais **seis regras em triggers** como rede de segurança. A referência de data local é obtida centralmente em Python e passada explicitamente às consultas e validações. | 6.2, 6.3, 6.6 |
+| D6 | Validação amigável no serviço, dentro de transação `BEGIN IMMEDIATE`, mais regras de integridade em triggers como rede de segurança. A referência de data local é obtida centralmente em Python e passada explicitamente às consultas e validações. | 6.2, 6.3, 6.6 |
 | D7 | **Sem exclusão física** de histórico (`ON DELETE RESTRICT`). Cadastros usam desativação lógica. | 10 |
 | D8 | `Solicitacao.status` guarda só estados administrativos (`ABERTA`, `ENCERRADA`, `CANCELADA`). O grau de atendimento é **derivado**. | 5.2, 9 |
 | D9 | `Doacao` e `Distribuicao` **não têm `status`**. O registro existe somente depois de confirmado, em transação atômica. | 5.2, 14 |
@@ -40,7 +40,7 @@ Os pontos que dependem de aprovação do responsável pelo produto estão na se�
 
 - **Chaves primárias:** `INTEGER PRIMARY KEY` em todas as tabelas. Sem `AUTOINCREMENT`, porque registros referenciados nunca são excluídos.
 - **Tabelas `STRICT`** (SQLite 3.37 ou superior). Impedem gravar texto ou número fracionário em coluna `INTEGER`. Antes da implementação, verificar a versão embutida com `import sqlite3; print(sqlite3.sqlite_version)`. Se for inferior a 3.37, seguir o plano de contingência descrito na seção 6.5 (P7).
-- **Datas de negócio:** `TEXT` no formato `AAAA-MM-DD`, validadas por `CHECK (date(coluna) IS coluna)`. Isso rejeita `2026-02-30` e `03/11/2026`.
+- **Datas de negócio:** `TEXT` no formato `AAAA-MM-DD`, validadas por `CHECK (date(coluna, '+0 days') IS coluna)`. A normalização de calendário rejeita dias inexistentes, como `2026-02-30`, além de formatos diferentes de `AAAA-MM-DD`.
 - **Carimbo de movimentação:** `TEXT` no formato ISO-8601 com deslocamento explícito de fuso (`AAAA-MM-DDTHH:MM:SS±HH:MM`), preenchido pelo serviço Python a partir do provedor de relógio centralizado (seção 6.6). Não utilizar `DEFAULT CURRENT_TIMESTAMP` para simular horário local. A data de referência para regras de validade e alertas é derivada do mesmo instante local.
 - **Booleanos:** `INTEGER` com `CHECK (ativo IN (0,1))`.
 - **Quantidades:** inteiros em **unidade base** (seção 7).
@@ -179,7 +179,7 @@ Uma `Doacao` só existe depois do **recebimento confirmado** (D9). Ela é criada
 | `id_alimento` | INTEGER | FK → Alimento, NN |
 | `codigo_lote` | TEXT | NN, não vazio, **UQ global**, **gerado pelo sistema**. Identifica o lote de forma única dentro do Conecta Alimento, independentemente da origem. O formato é definido na implementação. |
 | `codigo_origem` | TEXT | Opcional. Código de lote informado pelo doador ou fabricante (ex.: número de série da embalagem). Não é único: o mesmo código pode aparecer em doações de doadores diferentes sem causar conflito. |
-| `data_validade` | TEXT | NN, data válida (P5) |
+| `data_validade` | TEXT | NN, data válida (P5); não pode ser alterada depois de uma saída por distribuição, mesmo que estornada (T8) |
 | `observacao` | TEXT | opcional |
 | — | — | `UNIQUE (id_lote, id_alimento)`, alvo da FK composta |
 
@@ -218,7 +218,7 @@ Cabeçalho da entrega. Existe somente depois de confirmada (D9).
 | `id_distribuicao` | INTEGER | PK |
 | `id_solicitacao` | INTEGER | FK → Solicitacao, NN |
 | `id_usuario` | INTEGER | FK → Usuario, NN |
-| `data_distribuicao` | TEXT | NN, data válida; preenchida pelo serviço com a referência de data local, não editável pelo usuário no MVP |
+| `data_distribuicao` | TEXT | NN, data válida; preenchida pelo serviço com a referência de data local; não pode ser alterada depois de uma saída vinculada (T7) |
 | `observacao` | TEXT | opcional |
 | — | — | `UNIQUE (id_distribuicao, id_solicitacao)`, alvo da FK composta |
 
@@ -304,7 +304,7 @@ As FKs compostas seguem a semântica `MATCH SIMPLE` do SQLite: se qualquer colun
 
 ### 6.2 Triggers (rede de segurança)
 
-Regras que dependem de agregação não cabem em `CHECK` nem em FK. Seis regras, em sete triggers:
+Regras que dependem de agregação ou da preservação do histórico não cabem em `CHECK` nem em FK. Oito regras, em nove triggers:
 
 | Id | Regra | Evento |
 |---|---|---|
@@ -314,6 +314,8 @@ Regras que dependem de agregação não cabem em `CHECK` nem em FK. Seis regras,
 | T4 | `SAIDA_DISTRIBUICAO` só em solicitação `ABERTA` e **nunca acima do pendente** do item. Pendente = `quantidade_solicitada − (Σ SAIDA_DISTRIBUICAO − Σ ESTORNO_DISTRIBUICAO)` para o mesmo `id_item_solicitacao`. | `BEFORE INSERT` em `MovimentacaoEstoque` |
 | T5 | `Alimento.unidade_medida` não muda depois que o alimento tem lote ou item solicitado | `BEFORE UPDATE OF unidade_medida` em `Alimento` |
 | T6 | **Validação do estorno integral:** ao inserir `ESTORNO_DISTRIBUICAO`, verifica que: (a) `id_movimentacao_original` referencia uma movimentação existente do tipo `SAIDA_DISTRIBUICAO`; (b) `id_lote`, `id_alimento`, `id_distribuicao`, `id_item_solicitacao` e `id_solicitacao` coincidem com os da original; (c) a quantidade do estorno é **exatamente igual** à quantidade da movimentação original; (d) não existe outro estorno para a mesma origem (também protegido pelo índice `UNIQUE` parcial). | `BEFORE INSERT` em `MovimentacaoEstoque` |
+| T7 | `Distribuicao.data_distribuicao` pode ser corrigida antes de qualquer saída vinculada. Depois de existir `SAIDA_DISTRIBUICAO`, a data fica imutável, inclusive se a saída for estornada, para impedir alteração retroativa da validade usada na decisão. | `BEFORE UPDATE OF data_distribuicao` em `Distribuicao` |
+| T8 | `Lote.data_validade` pode ser corrigida antes de qualquer saída. Depois de existir `SAIDA_DISTRIBUICAO` do lote, a validade fica imutável, inclusive se todas as saídas forem estornadas. | `BEFORE UPDATE OF data_validade` em `Lote` |
 
 Os triggers **não substituem** o serviço. A regra de negócio continua centralizada nos módulos Python (DRY), que validam antes e devolvem mensagens claras. Os triggers existem para que um defeito de código ou um acesso direto ao arquivo não consiga violar as regras inegociáveis.
 
@@ -347,6 +349,9 @@ Servem de base para testes de integração futuros:
 - `PRAGMA foreign_keys` vale **por conexão** e vem **desligado** por padrão. O projeto deve ter um único ponto de abertura de conexão, que ative a pragma e configure `busy_timeout`. Um teste deve confirmar que a pragma retorna `1` em conexão nova.
 - Dentro de uma transação aberta, alterar essa pragma não tem efeito. Ela deve ser ativada ao abrir a conexão.
 - `STRICT` exige SQLite 3.37 ou superior.
+- O esquema usa `PRAGMA user_version = 1`. Um arquivo vazio recebe o esquema e a versão na mesma transação. Repetir a inicialização em um banco versão 1 estruturalmente compatível preserva dados e objetos. Banco não vazio sem versão, versão futura ou estrutura incompatível é recusado sem alterações. A compatibilidade compara tabelas, colunas, objetos e suas definições SQL; migrações entre versões ainda não estão implementadas.
+- A aplicação do DDL e a atualização de `user_version` ocorrem em transação `BEGIN IMMEDIATE`. Falhas provocam rollback do DDL e da versão.
+- `data_movimentacao` exige `AAAA-MM-DDTHH:MM:SS±HH:MM`, com dígitos em todas as posições numéricas, data e horário reais, deslocamento no intervalo inclusivo de `-14:00` a `+14:00` e minutos de deslocamento entre `00` e `59` (em `14` horas, somente `00`).
 - Os arquivos auxiliares `-wal`, `-shm` e `-journal` já estão no `.gitignore`. Backups devem usar a API de backup do `sqlite3`, e não cópia simples do arquivo com o banco em uso.
 
 **Verificação da versão do SQLite antes da implementação:**
@@ -496,7 +501,7 @@ Estados de uma solicitação, derivados:
 
 O estorno serve para cancelar um lançamento administrativo incorreto quando a entrega física correspondente **não ocorreu**. Se os alimentos foram efetivamente entregues e depois devolvidos, ou se a quantidade física entregue divergiu do registro, isso não deve ser disfarçado como estorno integral: o tratamento de devoluções físicas e de correções parciais de entregas reais fica fora do MVP e exige um processo específico de conferência e auditoria em versão posterior. Ajustes de estoque (`AJUSTE_ENTRADA`/`AJUSTE_SAIDA`) corrigem diferenças de contagem ou perdas físicas justificadas que não correspondam à correção do atendimento de uma solicitação; eles não alteram o total líquido entregue. Uma divergência entre a quantidade fisicamente distribuída e a quantidade registrada exige processo específico, fora do MVP.
 
-**Limitação assumida no MVP (P6):** edições de cadastros e da `data_validade` de um lote não geram trilha de auditoria. Edição restrita a perfis privilegiados; tabela de auditoria genérica fica para versão futura.
+**Limitação assumida no MVP (P6):** alterações de cadastros e correções de `data_validade` antes de qualquer distribuição não geram trilha de auditoria. Após uma saída por distribuição, a validade do lote e a data da distribuição não podem ser alteradas. Edição prévia restrita a perfis privilegiados; tabela de auditoria genérica fica para versão futura.
 
 ## 11. Exemplos
 
@@ -638,7 +643,7 @@ O desenho **original** foi exercitado em um banco SQLite **descartável, em mem�
 - As consultas V1 a V5 retornaram 0 linhas.
 - Uma conexão nova veio com `foreign_keys = 0`, e com a pragma desligada uma FK inválida foi **aceita**, o que confirma a exigência da seção 6.5.
 
-**Escopo das revisões posteriores às 37 verificações:** o tipo `ESTORNO_DISTRIBUICAO`, sua exigência de estorno integral, o índice UNIQUE de estorno, o bloqueio de lote vencido em T3 com comparação à data da distribuição, as categorias de estoque, os campos `codigo_origem` em `Lote` e o provedor de data local são **adições ou ajustes que não foram exercitados** na verificação anterior. Precisam ser cobertos por testes oficiais durante a implementação do esquema e dos serviços.
+**Escopo das revisões posteriores às 37 verificações:** o tipo `ESTORNO_DISTRIBUICAO`, sua exigência de estorno integral, o índice UNIQUE de estorno, o bloqueio de lote vencido em T3, as proteções de data após distribuição, o timestamp com deslocamento validado, o versionamento do esquema, as categorias de estoque, `codigo_origem` e a referência temporal local foram adicionados depois da verificação original. Há casos automatizados correspondentes em `tests/test_banco.py`; a execução dessa suíte deve ser confirmada no ambiente Windows de desenvolvimento.
 
 **O que a verificação anterior comprova e o que não comprova:** comprova que as restrições originais são aceitas e cumpridas pelo SQLite 3.45.1. **Não** é a implementação do banco, **não** é suíte de testes do projeto e **não** foi executado no ambiente Windows do empacotamento. O esquema e os testes oficiais serão produzidos em tarefa posterior.
 
