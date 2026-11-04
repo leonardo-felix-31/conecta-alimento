@@ -1,11 +1,12 @@
 # Modelagem de Dados — Conecta Alimento
 
-> **Status: versão consolidada para aprovação final do responsável pelo produto (Tarefa 2).**
+> **Status: modelo consolidado; implementação parcial documentada nas seções 13 e 14.**
 > Esta versão incorpora a revisão do modelo de dados, incluindo estorno integral de distribuição,
 > limiar de vencimento de sete dias, categorias de estoque, identificação interna e de origem dos lotes,
 > compatibilidade do SQLite e referência temporal local centralizada na aplicação Python.
-> **Nada aqui está implementado no projeto:** o banco SQLite, os módulos Python e os testes
-> serão criados em tarefas posteriores, depois da aprovação do modelo.
+> Este documento preserva as decisões do modelo e seu histórico. A existência de uma regra
+> no modelo ou no SQLite não significa que a operação correspondente esteja disponível no
+> serviço ou na interface; consulte a situação atualizada nas seções 13 e 14.
 
 ## 1. Objetivo e escopo
 
@@ -34,12 +35,12 @@ O documento cobre o modelo, as regras e a justificativa das decisões. Ele não 
 | D9 | `Doacao` e `Distribuicao` **não têm `status`**. O registro existe somente depois de confirmado, em transação atômica. | 5.2, 14 |
 | D10 | Datas em `TEXT` ISO-8601 validadas por `CHECK`. Tabelas `STRICT`. | 3 |
 
-Os pontos que dependem de aprovação do responsável pelo produto estão na seção 14.
+As decisões ainda abertas e as funcionalidades pendentes estão identificadas na seção 14.
 
 ## 3. Convenções
 
 - **Chaves primárias:** `INTEGER PRIMARY KEY` em todas as tabelas. Sem `AUTOINCREMENT`, porque registros referenciados nunca são excluídos.
-- **Tabelas `STRICT`** (SQLite 3.37 ou superior). Impedem gravar texto ou número fracionário em coluna `INTEGER`. Antes da implementação, verificar a versão embutida com `import sqlite3; print(sqlite3.sqlite_version)`. Se for inferior a 3.37, seguir o plano de contingência descrito na seção 6.5 (P7).
+- **Tabelas `STRICT`** (SQLite 3.37 ou superior). Impedem gravar texto ou número fracionário em coluna `INTEGER`. O SQLite embutido no Python 3.12.10 do ambiente Windows de desenvolvimento foi verificado como 3.49.1. A versão do futuro executável PyInstaller ainda precisa de validação; se for inferior a 3.37, avaliar a contingência descrita na seção 6.5 (P7).
 - **Datas de negócio:** `TEXT` no formato `AAAA-MM-DD`, validadas por `CHECK (date(coluna, '+0 days') IS coluna)`. A normalização de calendário rejeita dias inexistentes, como `2026-02-30`, além de formatos diferentes de `AAAA-MM-DD`.
 - **Carimbo de movimentação:** `TEXT` no formato ISO-8601 com deslocamento explícito de fuso (`AAAA-MM-DDTHH:MM:SS±HH:MM`), preenchido pelo serviço Python a partir do provedor de relógio centralizado (seção 6.6). Não utilizar `DEFAULT CURRENT_TIMESTAMP` para simular horário local. A data de referência para regras de validade e alertas é derivada do mesmo instante local.
 - **Booleanos:** `INTEGER` com `CHECK (ativo IN (0,1))`.
@@ -297,7 +298,7 @@ Registro único de **todo** efeito sobre o estoque. É imutável.
 | Um único estorno por movimentação de origem | Índice `UNIQUE` parcial em `(id_movimentacao_original)` onde `tipo = 'ESTORNO_DISTRIBUICAO'` |
 | Um item por alimento em cada solicitação | `UNIQUE (id_solicitacao, id_alimento)` |
 | Nomes e logins únicos | `UNIQUE` com `COLLATE NOCASE` |
-| Datas válidas | `CHECK (date(coluna) IS coluna)` |
+| Datas válidas | `CHECK (date(coluna, '+0 days') IS coluna)`, para rejeitar dias de calendário inexistentes |
 | Sem exclusão de histórico referenciado | `ON DELETE RESTRICT` em todas as FKs |
 
 As FKs compostas seguem a semântica `MATCH SIMPLE` do SQLite: se qualquer coluna da chave for nula, a FK não é verificada. Por isso as linhas que não são `SAIDA_DISTRIBUICAO` nem `ESTORNO_DISTRIBUICAO` (com os três vínculos nulos) não são afetadas, e o `CHECK` por tipo garante que essas movimentações nunca tenham vínculo nulo.
@@ -354,7 +355,7 @@ Servem de base para testes de integração futuros:
 - `data_movimentacao` exige `AAAA-MM-DDTHH:MM:SS±HH:MM`, com dígitos em todas as posições numéricas, data e horário reais, deslocamento no intervalo inclusivo de `-14:00` a `+14:00` e minutos de deslocamento entre `00` e `59` (em `14` horas, somente `00`).
 - Os arquivos auxiliares `-wal`, `-shm` e `-journal` já estão no `.gitignore`. Backups devem usar a API de backup do `sqlite3`, e não cópia simples do arquivo com o banco em uso.
 
-**Verificação da versão do SQLite antes da implementação:**
+**Verificação de compatibilidade:**
 
 O comando a seguir exibe a versão do SQLite embutida no Python em uso:
 
@@ -363,19 +364,19 @@ import sqlite3
 print(sqlite3.sqlite_version)  # exemplo: 3.45.1
 ```
 
-Executar esse comando **no ambiente Windows de empacotamento** antes de criar qualquer esquema. Se a versão for inferior a 3.37, as tabelas `STRICT` devem ser substituídas por `CHECK (typeof(coluna) IN ('integer', 'null'))` nas colunas `INTEGER` críticas (`quantidade`, `id_lote`, `id_alimento`, `id_usuario` e similares). A decisão sobre `STRICT` deve ser registrada antes do início da implementação do banco (P7).
+No ambiente Windows de desenvolvimento, Python 3.12.10 foi verificado com SQLite 3.49.1, compatível com `STRICT`. A versão do futuro executável de empacotamento ainda precisa ser verificada antes de distribuí-lo. Se esse runtime usar versão inferior a 3.37, reavaliar as tabelas `STRICT` e a contingência com `CHECK (typeof(...))` nas colunas `INTEGER` críticas descrita em P7.
 
 ### 6.6 Referência de data local e testabilidade
 
-A referência temporal será obtida pela aplicação Python, com base no relógio e fuso horário local do computador Windows onde o MVP estiver sendo executado. O serviço responsável deverá concentrar essa leitura em um único ponto, por exemplo, `servicos/relogio.py`, por meio de uma função como `obter_instante_local()`, baseada em `datetime.now().astimezone()`. A partir do mesmo instante com fuso, o serviço deriva `data_referencia` (data local no formato `AAAA-MM-DD`) e `data_movimentacao` (timestamp ISO-8601 com deslocamento explícito). Assim, os dois campos não são capturados em instantes diferentes.
+O modelo exige uma referência temporal baseada no relógio e fuso local do computador Windows. `servicos/relogio.py` centraliza essa leitura por `datetime.now().astimezone()` e deriva `data_referencia` e o timestamp ISO-8601 com fuso do mesmo instante. O recebimento de doação usa esse provedor e seus testes injetam um instante fixo. O serviço de distribuição ainda não existe; portanto, sua data de negócio continua sendo uma regra modelada e parcialmente protegida no SQLite, não uma operação disponível.
 
 Regras de utilização:
 
-- Cada operação deverá obter o instante local **uma única vez** e derivar dele os valores `data_referencia` e `data_movimentacao`, reutilizando-os durante toda a operação.
+- Cada operação de serviço que registra movimentação deve obter o instante local **uma única vez** e derivar dele os valores `data_referencia` e `data_movimentacao`, reutilizando-os durante toda a operação. O recebimento implementado segue essa regra; fluxos de distribuição e baixa permanecem futuros.
 - A data será passada explicitamente aos repositórios e às consultas SQL como parâmetro (`:data_referencia`); não utilizar `date('now')` nem `datetime('now')` para regras de validade ou alertas.
-- `Distribuicao.data_distribuicao` será preenchida pelo serviço com essa data local, dentro da transação, e não poderá ser alterada livremente pela interface no MVP. O trigger T3 compara `Lote.data_validade` com a data persistida da distribuição, mantendo a regra de validade no banco sem depender do relógio UTC do SQLite.
+- Quando o serviço de distribuição for implementado, `Distribuicao.data_distribuicao` deverá ser preenchida com essa data local dentro da transação. O trigger T3 compara `Lote.data_validade` com a data persistida e um trigger de histórico impede alteração após saída; o esquema implementa essas proteções, mas a distribuição não está disponível na interface.
 - As consultas de estoque disponível e vencido recebem `:data_referencia`. Para o alerta de próximos vencimentos, o serviço calcula `data_limite = data_referencia + 7 dias` e passa as duas datas explicitamente à consulta.
-- A função que fornece o instante local deverá ser substituível nos testes (por injeção de dependência ou provedor de relógio controlável), permitindo testar datas e horários fixos sem alterar o relógio do computador.
+- A função que fornece o instante local é substituível nos testes (por injeção de dependência), permitindo testar datas e horários fixos sem alterar o relógio do computador.
 - O computador deverá manter data e fuso horário local corretamente configurados. No MVP local, a referência é a data local do sistema operacional; uma política de fuso horário configurável não faz parte do escopo.
 
 Essa separação evita divergências entre a data local da aplicação e a referência UTC implícita de `date('now')` no SQLite. O mesmo instante local obtido pelo provedor centralizado fornece tanto `data_referencia` quanto `data_movimentacao`: a primeira é a data de negócio usada nas regras de validade; a segunda é registrada como timestamp ISO-8601 com deslocamento explícito de fuso, permitindo identificar o momento do lançamento sem depender do relógio interno do SQLite. Ambos os valores são fornecidos pelo serviço Python dentro da mesma operação e podem ser controlados nos testes.
@@ -643,24 +644,26 @@ O desenho **original** foi exercitado em um banco SQLite **descartável, em mem�
 - As consultas V1 a V5 retornaram 0 linhas.
 - Uma conexão nova veio com `foreign_keys = 0`, e com a pragma desligada uma FK inválida foi **aceita**, o que confirma a exigência da seção 6.5.
 
-**Escopo das revisões posteriores às 37 verificações:** o tipo `ESTORNO_DISTRIBUICAO`, sua exigência de estorno integral, o índice UNIQUE de estorno, o bloqueio de lote vencido em T3, as proteções de data após distribuição, o timestamp com deslocamento validado, o versionamento do esquema, as categorias de estoque, `codigo_origem` e a referência temporal local foram adicionados depois da verificação original. Há casos automatizados correspondentes em `tests/test_banco.py`; a execução dessa suíte deve ser confirmada no ambiente Windows de desenvolvimento.
+**Escopo das revisões posteriores às 37 verificações:** o tipo `ESTORNO_DISTRIBUICAO`, sua exigência de estorno integral, o índice UNIQUE de estorno, o bloqueio de lote vencido em T3, as proteções de data após distribuição, o timestamp com deslocamento validado, o versionamento do esquema, as categorias de estoque, `codigo_origem` e a referência temporal local foram adicionados depois da verificação original. As restrições adicionadas ao esquema têm casos em `tests/test_banco.py`. O registro histórico acima não representa a suíte oficial atual.
 
-**O que a verificação anterior comprova e o que não comprova:** comprova que as restrições originais são aceitas e cumpridas pelo SQLite 3.45.1. **Não** é a implementação do banco, **não** é suíte de testes do projeto e **não** foi executado no ambiente Windows do empacotamento. O esquema e os testes oficiais serão produzidos em tarefa posterior.
+**O que a verificação anterior comprova e o que não comprova:** comprova apenas que as restrições originais foram exercitadas no banco descartável com SQLite 3.45.1. Não comprova as restrições que foram adicionadas depois, os serviços, a interface ou o futuro executável Windows.
 
-## 14. Pendências e decisões para aprovação
+**Validação atual da implementação (02/11/2026):** o esquema SQLite está implementado e versionado em `banco/`; a suíte oficial de persistência e serviços, em `tests/test_banco.py` e `tests/test_servicos.py`, teve **50 aprovações e nenhuma falha** nesta revisão corretiva. A cobertura reportada foi **86% somente para `banco` e `servicos`**, sem incluir a interface. Os testes verificam as regras cobertas por seus casos; não implicam que todas as operações descritas no modelo existam na interface. Consulte `docs/STATUS_IMPLEMENTACAO.md` para o escopo por camada e as pendências.
+
+## 14. Estado das decisões e pendências
 
 | Id | Ponto | Situação nesta revisão | Alternativa ou impacto |
 |---|---|---|---|
-| P1 | Estorno de distribuição | **Incorporado ao MVP como estorno integral.** A quantidade de `ESTORNO_DISTRIBUICAO` deve ser exatamente igual à `SAIDA_DISTRIBUICAO` original. Um único estorno por saída. Aplicável a lançamento incorreto cuja entrega física não ocorreu; devolução física e correção parcial de entrega real ficam fora do MVP. | Aprovação final do responsável pelo produto |
-| P2 | Valores de `tipo` (Doador, Instituicao) e `perfil` (Usuario) | Valores provisórios listados na seção 5.2 | Ajustar conforme o cenário real. Permissões por perfil ficam para tarefa própria |
-| P3 | Lote vencido | **Formalizado.** Três categorias definidas: estoque físico, disponível e vencido (seção 9.1). Lotes vencidos bloqueados para `SAIDA_DISTRIBUICAO` em T3. `PERDA` em lote vencido permanece permitida. Baixa não é automática. | Aprovação necessária antes da implementação |
-| P4 | Limiar de "próximo do vencimento" | **Definido: 7 dias** como padrão inicial, configurável sem alteração de esquema (parâmetro na camada de serviço). Ver seção 9.2. | Valor inicial fechado para o MVP; pode ser parametrizado futuramente |
-| P5 | `Lote.data_validade` | Obrigatória | Permitir nula se aparecerem alimentos sem validade |
-| P6 | Auditoria de edições de cadastros e de `data_validade` | Sem trilha no MVP. Edição restrita a perfis privilegiados | Tabela de auditoria genérica em versão futura |
-| P7 | Versão do SQLite no empacotamento Windows | **Método de verificação documentado** na seção 6.5. Contingência documentada: substituir `STRICT` por `CHECK (typeof(...))` se versão < 3.37. A versão efetiva **ainda precisa ser verificada no ambiente Windows** antes de criar o esquema. | Confirmar com `sqlite3.sqlite_version` antes de criar o esquema |
-| P8 | Totais do dashboard por unidade | Somados por unidade (kg, L, un) | O protótipo da tela 3 mostra só kg. A tela real deverá mostrar cada unidade separada |
-| P9 | `Solicitacao.status` com `ENCERRADA` | Mantido, para fechar solicitações parciais | Remover e deixar parciais pendentes indefinidamente |
-| P10 | Referência temporal local | **Método definido** na seção 6.6: leitura centralizada no serviço Python, data passada explicitamente a consultas e validações, e `Distribuicao.data_distribuicao` preenchida com a mesma referência. A execução deverá ser coberta por testes com data controlada e verificada no Windows. | A configuração correta do relógio e fuso do sistema operacional é pré-requisito do uso local |
+| P1 | Estorno de distribuição | **Modelado e protegido parcialmente no SQLite:** estorno integral e único por saída têm trigger/índice e teste de persistência. Serviço e interface de distribuição/estorno ainda não existem. Aplicável a lançamento incorreto; devolução física e correção parcial ficam fora do MVP. | Implementar operação e fluxo de interface em etapa futura |
+| P2 | Valores de `tipo` (Doador, Instituicao) e `perfil` (Usuario) | Valores enumerados na seção 5.2 estão no esquema. A criação de usuários está limitada aos perfis `ESTOQUE` e `OPERADOR`; autorização por perfil ainda não faz parte do escopo implementado. | Rever valores se a operação real exigir; definir permissões numa etapa própria |
+| P3 | Lote vencido | **Regra implementada em SQLite** para bloquear saída por distribuição e permitir perda/ajuste de saída; categorias de estoque e alerta também existem nos serviços. Distribuição e perda ainda não estão disponíveis na interface. | Baixa não automática; registrar perda continua sendo uma operação futura |
+| P4 | Limiar de "próximo do vencimento" | **Definido como 7 dias** em `servicos/estoque.py` e usado pelo dashboard. | Reavaliar o período somente se o responsável pelo produto solicitar |
+| P5 | `Lote.data_validade` | Obrigatória no esquema e no recebimento atual. | Decisão de produto ainda aberta: permitir lote sem validade, se houver esse caso operacional |
+| P6 | Auditoria de edições de cadastros e de `data_validade` | Não há trilha de auditoria. Não existe fluxo de edição de validade; correções antes de distribuição são permitidas no SQLite conforme T8. | Definir necessidade e autorização antes de implementar edição/auditoria |
+| P7 | Versão do SQLite no empacotamento Windows | Python 3.12.10 do ambiente de desenvolvimento usa SQLite 3.49.1; a versão do futuro executável PyInstaller ainda não foi validada. | Validar a versão embutida no executável antes de distribuí-lo |
+| P8 | Totais do dashboard por unidade | O serviço agrupa o estoque por alimento e mantém sua unidade (`KG`, `L` ou `UN`); a interface exibe a unidade ao lado da quantidade. | Confirmar apresentação e interpretação com usuários operacionais |
+| P9 | `Solicitacao.status` com `ENCERRADA` | Mantido no modelo para encerrar solicitações parcialmente atendidas. A operação de solicitações/distribuições ainda não existe nos serviços ou na interface. | A decisão sobre o comportamento parcial permanece conforme o modelo aprovado |
+| P10 | Referência temporal local | Relógio centralizado é usado pelo recebimento; o timestamp é testado com instante controlado. `Distribuicao.data_distribuicao` e sua operação ainda não estão disponíveis na camada de serviço/interface. | O fuso configurado no sistema operacional permanece pré-requisito do uso local |
 
 ## 15. Registro da consolidação final
 
@@ -669,4 +672,4 @@ Esta versão incorpora os dois últimos ajustes solicitados na revisão técnica
 1. **Estorno integral:** `ESTORNO_DISTRIBUICAO` deve possuir a mesma quantidade da saída original. Estornos parciais são rejeitados. O índice `UNIQUE` parcial mantém a regra de no máximo um estorno por saída.
 2. **Data local centralizada:** a aplicação Python obtém uma única referência de data local por operação, injeta esse valor nas consultas e validações e o utiliza em `Distribuicao.data_distribuicao`. As regras não dependem de `date('now')` no SQLite.
 
-O documento permanece uma especificação para aprovação. A consolidação textual não significa que o esquema, as triggers, os serviços ou os testes já tenham sido implementados ou executados. Antes da implementação, os critérios descritos deverão ser traduzidos em DDL e testes automatizados, incluindo estorno integral, bloqueio de lote vencido, uso da data de referência controlada e integridade das movimentações.
+O modelo continua sendo a referência das regras de dados. O esquema SQLite e as restrições nele descritas estão implementados; os serviços e a interface cobrem apenas parte dos fluxos. Distribuição, perdas, ajustes e estornos continuam modelados e protegidos em parte pelo banco, mas não estão implementados como operações completas. A execução automatizada e o escopo coberto estão registrados em `docs/STATUS_IMPLEMENTACAO.md`.

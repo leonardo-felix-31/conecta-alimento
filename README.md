@@ -1,60 +1,65 @@
 # Conecta Alimento
 
-Sistema local de gestão de doações alimentares, estoque, solicitações e distribuição.
+Aplicação local para registrar doações recebidas, lotes e estoque de alimentos. O cenário acadêmico usa a Associação Comunitária Mesa Solidária como referência fictícia; não houve entrevista nem validação operacional com uma organização real.
 
-> **Status: fase inicial de implementação.** Este repositório acabou de ser configurado. Ainda não há código, banco de dados, testes automatizados ou pipeline de CI. As seções abaixo descrevem o que o projeto pretende entregar, não o que já está pronto.
+## Arquitetura
 
-## Sobre o projeto
+- **Interface:** Streamlit em `app.py` e `interface/`.
+- **Serviços:** validações, cadastros, recebimentos, estoque, autenticação mínima e indicadores em `servicos/`.
+- **Persistência:** SQLite e `sqlite3` em `banco/`.
 
-O Conecta Alimento é um projeto da disciplina de Projeto de Software, do curso de Ciência da Computação. O objetivo é construir uma aplicação simples e funcional que substitua registros dispersos em planilhas e anotações por um sistema organizado, com banco de dados relacional e regras de negócio centralizadas.
+A interface chama os serviços e não executa SQL. O saldo é calculado a partir das movimentações; quantidades são armazenadas em gramas, mililitros ou unidades inteiras.
 
-O cenário de referência usado na modelagem inicial é a Associação Comunitária Mesa Solidária, uma organização **fictícia**. Não houve entrevista nem visita a uma organização real nesta etapa.
+## Requisitos
 
-O software busca melhorar a eficiência operacional, o acompanhamento de lotes e validades e a rastreabilidade dos alimentos recebidos e distribuídos. Ele não é apresentado como solução para a insegurança alimentar, e não há dados que comprovem redução da fome ou do desperdício.
+- Windows com Python 3.12.
+- A aplicação cria o arquivo SQLite local em `dados/conecta_alimento.sqlite3` na primeira inicialização.
+- O banco e os relatórios locais são ignorados pelo Git.
 
-## Escopo planejado do MVP
+## Instalar
 
-- Cadastro de doadores, alimentos, instituições atendidas e usuários internos
-- Registro de doações, criação de lotes e controle de datas de validade
-- Controle de entradas e saídas de estoque, com perdas e ajustes justificados
-- Consulta de estoque por alimento e lote
-- Solicitações e distribuições, incluindo atendimento parcial
-- Dashboard com indicadores calculados automaticamente a partir dos registros
-- Relatórios operacionais (exportação em CSV desejável)
-- Testes automatizados e preparação para distribuição no Windows
+No PowerShell, na pasta do repositório:
 
-Fora do escopo do MVP: portal público de doações, API REST, aplicativo móvel, acesso remoto simultâneo, inteligência artificial e integrações externas complexas.
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+```
 
-## Decisões de arquitetura
+`requirements-dev.txt` inclui a dependência da aplicação e as ferramentas de teste. Para instalar somente a aplicação, use `requirements.txt`.
 
-- Arquitetura monolítica modular em camadas: apresentação, regras de negócio e persistência
-- Python 3.12, Streamlit para a interface e SQLite (módulo `sqlite3`) para persistência
-- pytest para testes, GitHub Actions para integração contínua e PyInstaller para o pacote Windows
-- O saldo de estoque nunca é digitado: é sempre derivado das movimentações registradas
-- Execução local, com a aplicação escutando apenas em loopback
+## Inicializar e executar
 
-As versões exatas das dependências serão definidas e fixadas durante a configuração do ambiente.
+```powershell
+.\.venv\Scripts\python.exe -c "from banco import inicializar; print(inicializar())"
+.\.venv\Scripts\python.exe -m streamlit run app.py --server.address 127.0.0.1
+```
 
-## Situação atual
+O servidor fica restrito ao loopback IPv4 (`127.0.0.1`) e não é publicado na rede.
 
-| Item | Situação |
-|---|---|
-| Repositório e documentação inicial | Em configuração |
-| Implementação do MVP | Não iniciada |
-| Testes automatizados | Não iniciados |
-| Integração contínua | Não configurada |
-| Validação com participantes reais | Não realizada |
+Na primeira abertura, crie o administrador com nome, login e uma senha de pelo menos 12 caracteres. Não há credenciais padrão. O hash da senha é salvo no SQLite; a aplicação não mantém a senha em texto puro.
 
-Esta tabela será atualizada à medida que cada etapa for concluída e comprovada.
+Falhas internas são registradas no console local que iniciou o Streamlit; a interface exibe mensagens genéricas e não mostra detalhes do SQLite.
 
-## Como executar
+Cadastre doadores e alimentos na tela **Cadastros**. Em **Receber doação**, adicione um ou mais lotes e confirme o recebimento; doação, lotes e entradas de estoque são gravados juntos ou revertidos juntos.
 
-Ainda não disponível. As instruções de instalação e execução serão adicionadas quando houver uma primeira versão funcional.
+## Testes
 
-## Dados e segurança
+```powershell
+.\.venv\Scripts\python.exe -m pytest --cov=banco --cov=servicos --cov-report=term-missing --cov-report=xml
+```
 
-Este repositório é público. Ele não deve conter senhas, tokens, dados pessoais reais nem arquivos de banco de dados. O `.gitignore` foi configurado para reduzir esse risco, mas não substitui a atenção a cada commit.
+Os testes de serviço usam arquivos SQLite temporários. A cobertura do comando abrange `banco` e `servicos`; não representa a cobertura da interface Streamlit.
 
-## Autoria
+Na validação local mais recente, a suíte registrou **54 testes aprovados** e **86% de cobertura** em `banco` e `servicos` (Python 3.12.10, pytest 9.2.0 e pytest-cov 7.1.0).
 
-Projeto acadêmico individual desenvolvido por Leonardo Felix.
+## Acessibilidade
+
+A interface oferece modo de alto contraste, ativado pelo controle na lateral e mantido durante os reruns da sessão. O modo reforça o contraste de textos, controles, estados e do gráfico do dashboard. Há também realce visível de foco para navegação por teclado. Esses recursos não substituem uma auditoria completa de acessibilidade ou testes com tecnologias assistivas.
+
+## Estado do MVP
+
+Consulte [docs/STATUS_IMPLEMENTACAO.md](docs/STATUS_IMPLEMENTACAO.md) para ver o que está implementado, testado e ainda pendente. Distribuições de solicitações, perdas/ajustes manuais, CRUD de instituições e relatórios continuam fora do primeiro fluxo vertical.
+
+## Segurança e dados
+
+O repositório é público. Não inclua senhas, tokens, dados pessoais reais ou arquivos de banco. Os usuários e registros de doação devem ser dados reais da organização que utilizará a instalação local; o aplicativo não cria dados de demonstração.
