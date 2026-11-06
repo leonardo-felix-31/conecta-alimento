@@ -3,6 +3,7 @@
 import html
 from datetime import date, datetime
 
+from servicos.configuracao import ambiente_hospedado, modo_demo
 from servicos.validacoes import quantidade_para_exibicao
 
 
@@ -55,8 +56,18 @@ def cabecalho_pagina(st, usuario: dict[str, object], pagina: str, titulo: str, d
 
 
 def rodape_pagina(st, nota: str = "Conecta Alimento · Gestão comunitária de alimentos") -> None:
+    if ambiente_hospedado():
+        ambiente = (
+            "Ambiente de demonstração · Dados fictícios"
+            if modo_demo()
+            else "Ambiente hospedado · Uso de demonstração"
+        )
+    elif modo_demo():
+        ambiente = "Aplicação local · Dados fictícios de demonstração"
+    else:
+        ambiente = "Aplicação local · Dados armazenados neste computador"
     st.markdown(
         f'<div class="ca-footer"><span>{html.escape(nota)}</span>'
-        '<span>Aplicação local · Dados neste computador</span></div>',
+        f'<span>{html.escape(ambiente)}</span></div>',
         unsafe_allow_html=True,
     )

@@ -96,7 +96,7 @@ ALTO_CONTRASTE_CSS = """
   }
   .st-key-ca-menu-hero {background:#000000!important;color:#FFFFFF!important;border:2px solid #FFFFFF!important;}
   .ca-page-title,.ca-section-heading,.ca-panel-heading,.ca-metric-top,
-  .ca-metric-development,.ca-quick-card-title,
+  .ca-quick-card-title,
   .ca-quick-title,.ca-metric-value,.ca-summary-title,.ca-summary-total-value,
   .ca-form-section-label,.ca-info-title,.ca-account-name,.ca-breadcrumb strong,
   .ca-alert-title,.ca-table {color:#FFFFFF!important;}
@@ -234,7 +234,6 @@ def aplicar_estilos(st, *, alto_contraste: bool = False) -> None:
       .ca-metric-icon {{width:29px;height:29px;display:grid;place-items:center;background:#EAF2EC;border-radius:9px;color:#276B54;font-size:14px;}}
       .ca-metric-value {{color:#1D3F31;font-size:28px;font-weight:750;line-height:1.05;margin-top:9px;}}
       .ca-metric-note {{color:#7B8982;font-size:9px;margin-top:5px;}}
-      .ca-metric-development {{color:#6D7B73;font-size:16px;font-weight:700;margin-top:10px;}}
       .st-key-ca-dashboard-chart,.st-key-ca-dashboard-alerts {{min-height:292px;background:#fff!important;border:1px solid var(--ca-border)!important;border-radius:15px!important;padding:17px 17px 14px!important;}}
       .ca-panel-heading {{color:#293F34;font-size:16px;font-weight:700;}}
       .ca-panel-meta {{color:#76867D;font-size:10px;}}

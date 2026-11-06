@@ -5,15 +5,27 @@ from __future__ import annotations
 from interface.componentes.formatacao import cabecalho_pagina, rodape_pagina
 
 
-def _navegar(st, destino: str) -> None:
-    st.session_state["pagina_atual"] = destino
-    st.rerun()
+def _atalho(st, atalho: tuple[str, str, str, str, str, str, str, str | None]) -> None:
+    chave, icone, categoria, titulo, descricao, rotulo, destino, aba = atalho
+    with st.container(key=chave):
+        st.markdown(
+            f'<div class="ca-quick-top"><span class="ca-quick-icon">{icone}</span>'
+            f'<span class="ca-quick-type">{categoria}</span></div>'
+            f'<div class="ca-quick-card-title">{titulo}</div>'
+            f'<div class="ca-quick-description">{descricao}</div>',
+            unsafe_allow_html=True,
+        )
+        if st.button(f"{rotulo}　→", key=f"atalho_{chave}", width="content"):
+            st.session_state["pagina_atual"] = destino
+            if aba is not None:
+                st.session_state["aba_cadastros"] = aba
+            st.rerun()
 
 
 def renderizar(st, usuario: dict[str, object]) -> None:
     cabecalho_pagina(
         st, usuario, "Menu principal", "Menu principal",
-        "Organize o recebimento e a distribuição de alimentos em um só lugar.",
+        "Organize o recebimento de doações e acompanhe o estoque em um só lugar.",
     )
 
     with st.container(key="ca-menu-hero"):
@@ -41,27 +53,21 @@ def renderizar(st, usuario: dict[str, object]) -> None:
         with direita:
             st.markdown('<div class="ca-quick-hint ca-quick-hint-right">Selecione uma área para continuar</div>', unsafe_allow_html=True)
 
-        cards = st.columns(3, gap="medium")
+        linha_superior = st.columns(3, gap="medium")
         atalhos = [
-            ("ca-quick-dashboard", "◇", "Operação", "Consultar estoque", "Confira quantidades disponíveis, lotes e datas de validade.", "Acessar estoque", "Visão geral", True),
-            ("ca-quick-cadastros", "▤", "Atendimento", "Acompanhar solicitações", "Pedidos e atendimento estarão disponíveis em uma próxima etapa.", "Em desenvolvimento", None, False),
-            ("ca-quick-donation", "⇢", "Distribuição", "Registrar distribuição", "O registro de entregas ainda está em desenvolvimento.", "Em desenvolvimento", None, False),
+            ("ca-quick-dashboard", "▦", "Operação", "Visão geral", "Confira indicadores, movimentações e alertas de validade.", "Acessar visão geral", "Visão geral", None),
+            ("ca-quick-donation", "♡", "Recebimento", "Doações", "Registre doações recebidas e os lotes de alimentos.", "Registrar doação", "Receber doação", None),
+            ("ca-quick-stock", "◇", "Operação", "Estoque", "Consulte quantidades disponíveis, lotes e validades.", "Acessar estoque", "Visão geral", None),
+            ("ca-quick-donors", "♙", "Cadastros", "Doadores", "Consulte e mantenha o cadastro de doadores.", "Consultar doadores", "Cadastros", "Doadores"),
+            ("ca-quick-foods", "▣", "Cadastros", "Alimentos", "Consulte e mantenha o cadastro de alimentos.", "Consultar alimentos", "Cadastros", "Alimentos"),
         ]
-        for coluna, (chave, icone, categoria, titulo, descricao, rotulo, destino, disponivel) in zip(cards, atalhos):
+        for coluna, atalho in zip(linha_superior, atalhos[:3]):
             with coluna:
-                with st.container(key=chave):
-                    st.markdown(
-                        f'<div class="ca-quick-top"><span class="ca-quick-icon">{icone}</span>'
-                        f'<span class="ca-quick-type">{categoria}</span></div>'
-                        f'<div class="ca-quick-card-title">{titulo}</div>'
-                        f'<div class="ca-quick-description">{descricao}</div>',
-                        unsafe_allow_html=True,
-                    )
-                    if disponivel:
-                        if st.button(f"{rotulo}　→", key=f"atalho_{chave}", width="content"):
-                            _navegar(st, destino)
-                    else:
-                        st.button(rotulo, key=f"atalho_{chave}", disabled=True, width="content")
+                _atalho(st, atalho)
+        linha_inferior = st.columns([.5, 1.5, 1.5, .5], gap="medium")
+        for coluna, atalho in zip(linha_inferior[1:3], atalhos[3:]):
+            with coluna:
+                _atalho(st, atalho)
 
     with st.container(key="ca-information-band"):
         icone, texto = st.columns([.12, 2], vertical_alignment="center")
@@ -69,6 +75,6 @@ def renderizar(st, usuario: dict[str, object]) -> None:
             st.markdown('<span class="ca-quick-icon">ⓘ</span>', unsafe_allow_html=True)
         with texto:
             st.markdown('<div class="ca-info-title">Informações organizadas, decisões mais claras</div>', unsafe_allow_html=True)
-            st.markdown('<div class="ca-info-copy">Registre cada recebimento e distribuição para manter o estoque e os indicadores atualizados.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="ca-info-copy">Registre cada recebimento para manter o estoque e os indicadores atualizados.</div>', unsafe_allow_html=True)
 
     rodape_pagina(st, "Conecta Alimento · Gestão comunitária de alimentos")

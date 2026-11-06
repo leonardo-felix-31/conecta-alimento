@@ -11,7 +11,8 @@ from banco import conectar, inicializar
 import servicos.dashboard as dashboard_module
 import servicos.estoque as estoque_module
 from servicos import ErroServico
-from servicos.autenticacao import autenticar_usuario, criar_primeiro_administrador
+from servicos.autenticacao import autenticar_usuario, criar_primeiro_administrador, verificar_segredo_bootstrap
+from servicos import limite_autenticacao
 from servicos.cadastros import (
     cadastrar_alimento, cadastrar_doador, criar_usuario, desativar_alimento, desativar_doador,
     listar_alimentos, listar_doadores,
@@ -291,3 +292,19 @@ def test_criar_usuario_permite_somente_perfis_operacionais(db):
         assert conn.execute("SELECT COUNT(*) FROM Usuario").fetchone()[0] == 3
     finally:
         conn.close()
+
+
+def test_segredo_bootstrap_exige_valor_e_compara_corretamente():
+    assert verificar_segredo_bootstrap("chave-super-secreta", "chave-super-secreta")
+    assert verificar_segredo_bootstrap("chave-á", "chave-á")
+    assert not verificar_segredo_bootstrap("chave-super-secreta", "incorreta")
+    assert not verificar_segredo_bootstrap("", "")
+
+
+def test_limite_login_bloqueia_apos_cinco_falhas_e_expira():
+    limite_autenticacao._limpar_tudo_para_teste()
+    for momento in range(5):
+        limite_autenticacao.registrar_falha("operador", agora=float(momento))
+    assert limite_autenticacao.bloqueado("OPERADOR", agora=5.0)
+    assert not limite_autenticacao.bloqueado("operador", agora=905.0)
+    limite_autenticacao._limpar_tudo_para_teste()

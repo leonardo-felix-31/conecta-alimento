@@ -47,6 +47,15 @@ def verificar_senha(senha: object, senha_hash: object) -> bool:
         return False
 
 
+def verificar_segredo_bootstrap(configurado: object, informado: object) -> bool:
+    """Compara o segredo de bootstrap sem comparação de tempo variável."""
+    esperado = str(configurado or "")
+    recebido = str(informado or "")
+    return bool(esperado) and hmac.compare_digest(
+        esperado.encode("utf-8"), recebido.encode("utf-8")
+    )
+
+
 def contar_usuarios(caminho: str | Path | None = None) -> int:
     conn = conectar(caminho or CAMINHO_BANCO_PADRAO)
     try:

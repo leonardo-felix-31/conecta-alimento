@@ -23,12 +23,11 @@ ROTULOS_MOVIMENTO = {
 }
 
 
-def _cartao_metrica(st, chave: str, icone: str, rotulo: str, valor: str, detalhe: str, *, desenvolvimento: bool = False) -> None:
+def _cartao_metrica(st, chave: str, icone: str, rotulo: str, valor: str, detalhe: str) -> None:
     with st.container(key=chave):
-        classe_valor = "ca-metric-development" if desenvolvimento else "ca-metric-value"
         st.markdown(
             f'<div class="ca-metric-top"><span class="ca-metric-icon">{escape(icone)}</span>{escape(rotulo)}</div>'
-            f'<div class="{classe_valor}">{escape(valor)}</div>'
+            f'<div class="ca-metric-value">{escape(valor)}</div>'
             f'<div class="ca-metric-note">{escape(detalhe)}</div>',
             unsafe_allow_html=True,
         )
@@ -160,13 +159,8 @@ def _painel_alertas(st, dados: dict[str, object]) -> None:
         )
     else:
         linha_vencidos = '<div class="ca-alert-row"><span class="ca-alert-icon ok">✓</span><div><div class="ca-alert-title">Sem lotes vencidos com saldo</div><div class="ca-alert-copy">Os lotes vencidos são excluídos do estoque disponível.</div></div></div>'
-    em_desenvolvimento = (
-        '<div class="ca-alert-row"><span class="ca-alert-icon info">i</span><div>'
-        '<div class="ca-alert-title">Solicitações e distribuições</div>'
-        '<div class="ca-alert-copy">Em desenvolvimento · ainda não geram indicadores operacionais.</div></div></div>'
-    )
     st.markdown(
-        '<div class="ca-alert-header">!　Alertas e pendências</div>' + linha + linha_vencidos + em_desenvolvimento,
+        '<div class="ca-alert-header">!　Alertas e pendências</div>' + linha + linha_vencidos,
         unsafe_allow_html=True,
     )
 
@@ -186,14 +180,14 @@ def renderizar(st, usuario: dict[str, object] | None = None) -> None:
 
     metricas = st.columns(4, gap="small")
     cartoes = [
-        ("ca-metric-received", "↓", "Doações recebidas", str(dados["doacoes_recebidas"]), "registros acumulados", False),
-        ("ca-metric-distributed", "↗", "Alimentos distribuídos", "Em desenvolvimento", "distribuições ainda indisponíveis", True),
-        ("ca-metric-stock", "▦", "Lotes disponíveis", str(dados["lotes_disponiveis"]), f"em {dados['alimentos_disponiveis']} {'alimento' if dados['alimentos_disponiveis'] == 1 else 'alimentos'}", False),
-        ("ca-metric-expiry", "!", "Próximos do vencimento", str(len(dados["lotes_proximos_vencimento"])), f"validade em até {dados['dias_alerta_vencimento']} dias", False),
+        ("ca-metric-received", "↓", "Doações recebidas", str(dados["doacoes_recebidas"]), "registros acumulados"),
+        ("ca-metric-registered", "▤", "Lotes registrados", str(dados["lotes_registrados"]), "registros acumulados"),
+        ("ca-metric-stock", "▦", "Lotes disponíveis", str(dados["lotes_disponiveis"]), f"em {dados['alimentos_disponiveis']} {'alimento' if dados['alimentos_disponiveis'] == 1 else 'alimentos'}"),
+        ("ca-metric-expiry", "!", "Próximos do vencimento", str(len(dados["lotes_proximos_vencimento"])), f"validade em até {dados['dias_alerta_vencimento']} dias"),
     ]
-    for coluna, (chave, icone, rotulo, valor, detalhe, desenvolvimento) in zip(metricas, cartoes):
+    for coluna, (chave, icone, rotulo, valor, detalhe) in zip(metricas, cartoes):
         with coluna:
-            _cartao_metrica(st, chave, icone, rotulo, valor, detalhe, desenvolvimento=desenvolvimento)
+            _cartao_metrica(st, chave, icone, rotulo, valor, detalhe)
 
     esquerda, direita = st.columns([1.16, 1], gap="medium")
     with esquerda:
@@ -230,4 +224,4 @@ def renderizar(st, usuario: dict[str, object] | None = None) -> None:
         else:
             st.caption("Nenhuma movimentação registrada.")
 
-    rodape_pagina(st, f"Conecta Alimento · Indicadores reais · {dados['dias_alerta_vencimento']} dias para alerta de validade")
+    rodape_pagina(st, f"Conecta Alimento · {dados['dias_alerta_vencimento']} dias para alerta de validade")

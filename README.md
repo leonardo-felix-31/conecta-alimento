@@ -36,6 +36,8 @@ py -3.12 -m venv .venv
 
 O servidor fica restrito ao loopback IPv4 (`127.0.0.1`) e não é publicado na rede.
 
+O caminho local padrão do SQLite é `dados/conecta_alimento.sqlite3`; pode ser substituído pela variável `CONECTA_DB_PATH`. Em ambiente hospedado, defina `CONECTA_ENV=hosted` e configure `CONECTA_BOOTSTRAP_SECRET` em `st.secrets` ou variável de ambiente antes da primeira criação do administrador. Nunca inclua esse segredo em arquivos versionados.
+
 Na primeira abertura, crie o administrador com nome, login e uma senha de pelo menos 12 caracteres. Não há credenciais padrão. O hash da senha é salvo no SQLite; a aplicação não mantém a senha em texto puro.
 
 Falhas internas são registradas no console local que iniciou o Streamlit; a interface exibe mensagens genéricas e não mostra detalhes do SQLite.
@@ -50,11 +52,17 @@ Cadastre doadores e alimentos na tela **Cadastros**. Em **Receber doação**, ad
 
 Os testes de serviço usam arquivos SQLite temporários. A cobertura do comando abrange `banco` e `servicos`; não representa a cobertura da interface Streamlit.
 
-Na validação local mais recente, a suíte registrou **54 testes aprovados** e **86% de cobertura** em `banco` e `servicos` (Python 3.12.10, pytest 9.2.0 e pytest-cov 7.1.0).
+Na validação local mais recente, a suíte registrou **56 testes aprovados** e **86% de cobertura** em `banco` e `servicos` (Python 3.12.10, pytest 9.2.0 e pytest-cov 7.1.0).
 
 ## Acessibilidade
 
 A interface oferece modo de alto contraste, ativado pelo controle na lateral e mantido durante os reruns da sessão. O modo reforça o contraste de textos, controles, estados e do gráfico do dashboard. Há também realce visível de foco para navegação por teclado. Esses recursos não substituem uma auditoria completa de acessibilidade ou testes com tecnologias assistivas.
+
+## Prontidão para hospedagem
+
+O app ainda não está pronto para uso público com dados operacionais. A limitação de tentativas de login é compartilhada pelo processo e reinicia junto com ele; não protege entre réplicas. O bootstrap hospedado exige segredo de autorização e fica fechado se ele não estiver configurado. Streamlit Community Cloud deve ser tratado apenas como demonstração descartável enquanto usa SQLite local, pois o armazenamento local da aplicação não é garantia de persistência. Não insira dados reais nesse cenário.
+
+Consulte [docs/PRONTIDAO_DEPLOY.md](docs/PRONTIDAO_DEPLOY.md) para comparação de hospedagem, dados, segurança residual e roteiro de validação.
 
 ## Estado do MVP
 
