@@ -59,6 +59,7 @@ relatorios_gerados/
 *.dump
 
 # --- Streamlit ---
+.visual-preview/
 # secrets.toml pode conter credenciais; nunca versionar
 .streamlit/secrets.toml
 .streamlit/*.local.toml

@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import sqlite3
+import os
 from pathlib import Path
 
 from banco.conexao import ErroBanco, conectar
 
 RAIZ_PROJETO = Path(__file__).resolve().parent.parent
-CAMINHO_BANCO_PADRAO = RAIZ_PROJETO / "dados" / "conecta_alimento.sqlite3"
+CAMINHO_BANCO_PADRAO = Path(os.environ.get(
+    "CONECTA_DB_PATH", str(RAIZ_PROJETO / "dados" / "conecta_alimento.sqlite3")
+)).expanduser()
 CAMINHO_SCHEMA = Path(__file__).resolve().with_name("schema.sql")
 VERSAO_MINIMA_SQLITE = (3, 37, 0)
 VERSAO_ESQUEMA = 1
