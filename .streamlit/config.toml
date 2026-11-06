@@ -5,6 +5,3 @@ backgroundColor = "#F6F8F5"
 secondaryBackgroundColor = "#FFFFFF"
 textColor = "#183326"
 font = "sans serif"
-
-[server]
-address = "127.0.0.1"
